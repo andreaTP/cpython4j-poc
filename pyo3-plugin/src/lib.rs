@@ -80,14 +80,56 @@ pub extern "C" fn plugin_eval(ptr: *const u8, length: usize) {
     });
 }
 
+// Import the invoke function from the WASM runtime
+#[link(wasm_import_module = "chicory")]
+extern "C" {
+    fn wasm_invoke(
+        module_str_ptr: *const u8,
+        module_str_len: usize,
+        name_str_ptr: *const u8,
+        name_str_len: usize,
+        args_str_ptr: *const u8,
+        args_str_len: usize,
+    ) -> *const u32;
+}
+
+// Helper function to call the WASM invoke function
+fn invoke_exec(module_str: String, name_str: String, args_str: String) -> String {
+    let module_bytes: &[u8] = module_str.as_bytes();
+    let name_bytes: &[u8] = name_str.as_bytes();
+    let args_bytes: &[u8] = args_str.as_bytes();
+
+    let return_str = unsafe {
+        let wide_ptr = wasm_invoke(
+            module_bytes.as_ptr(),
+            module_bytes.len(),
+            name_bytes.as_ptr(),
+            name_bytes.len(),
+            args_bytes.as_ptr(),
+            args_bytes.len(),
+        );
+        let [ptr, len] = std::slice::from_raw_parts(wide_ptr, 2) else {
+            unreachable!()
+        };
+        let res = std::slice::from_raw_parts(*ptr as *const u8, *len as usize);
+        let str_result = std::str::from_utf8(res).unwrap().to_string();
+        // Free the memory allocated by the WASM runtime
+        plugin_free(*wide_ptr as *mut u8);
+        plugin_free(*ptr as *mut u8);
+        str_result
+    };
+
+    return_str
+}
+
 #[pyfunction]
-fn sum_as_string(a: usize, b: usize) -> PyResult<String> {
-    Ok((a + b).to_string())
+fn invoke(module: String, name: String, args: String) -> PyResult<String> {
+    Ok(invoke_exec(module, name, args))
 }
 
 #[pymodule]
 fn pyo3_plugin(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_function(wrap_pyfunction!(sum_as_string, m)?)?;
+    m.add_function(wrap_pyfunction!(invoke, m)?)?;
     Ok(())
 }
 
