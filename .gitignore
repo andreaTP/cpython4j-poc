@@ -1,1 +1,3 @@
 target
+.idea
+pyo3_plugin*.wasm

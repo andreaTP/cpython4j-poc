@@ -11,6 +11,7 @@ import com.dylibso.chicory.runtime.ImportValues;
 import com.dylibso.chicory.runtime.Instance;
 import com.dylibso.chicory.runtime.Memory;
 import com.dylibso.chicory.runtime.TrapException;
+import com.dylibso.chicory.wasi.Files;
 import com.dylibso.chicory.wasi.WasiOptions;
 import com.dylibso.chicory.wasi.WasiPreview1;
 import com.dylibso.chicory.wasm.types.MemoryLimits;
@@ -18,8 +19,12 @@ import com.dylibso.chicory.wasm.types.ValueType;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.roastedroot.zerofs.Configuration;
+import io.roastedroot.zerofs.ZeroFs;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.file.FileSystem;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -36,6 +41,7 @@ public final class Engine implements AutoCloseable {
     private final WasiOptions wasiOpts;
 
     private final WasiPreview1 wasi;
+    private final FileSystem fs;
     private final Instance instance;
     private final Engine_ModuleExports exports;
 
@@ -54,8 +60,6 @@ public final class Engine implements AutoCloseable {
     private String invokeFunctionName;
     private String invokeArgs;
 
-    private final ScriptCache cache;
-
     public static Builder builder() {
         return new Builder();
     }
@@ -65,11 +69,9 @@ public final class Engine implements AutoCloseable {
             Map<String, Invokables> invokables,
             ObjectMapper mapper,
             Function<MemoryLimits, Memory> memoryFactory,
-            ScriptCache cache,
             Logger logger) {
         this.mapper = mapper;
         this.builtins = builtins;
-        this.cache = cache;
 
         // builtins to make invoke dynamic javascript functions
         builtins.put(
@@ -81,9 +83,23 @@ public final class Engine implements AutoCloseable {
                         .build());
 
         var wasiOptsBuilder = WasiOptions.builder().withStdout(stdout).withStderr(stderr);
+        this.fs =
+                ZeroFs.newFileSystem(
+                        Configuration.unix().toBuilder().setAttributeViews("unix").build());
+
+        // TODO: FIXME
+        Path inputFolder = fs.getPath("/usr");
+        Path copyFrom = Path.of("../pyo3-plugin/target/wasm32-wasi/wasi-deps/usr");
+        try {
+            Files.copyDirectory(copyFrom, inputFolder);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        wasiOptsBuilder.withDirectory(inputFolder.toString(), inputFolder);
 
         this.wasiOpts = wasiOptsBuilder.build();
         this.wasi = WasiPreview1.builder().withOptions(this.wasiOpts).withLogger(logger).build();
+
         // set_result builtins
         invokables.entrySet().stream()
                 .forEach(
@@ -96,9 +112,9 @@ public final class Engine implements AutoCloseable {
                         });
         this.invokables = invokables;
         instance =
-                Instance.builder(py03PluginModule.load())
+                Instance.builder(PythonPlugin.load())
                         .withMemoryFactory(memoryFactory)
-                        .withMachineFactory(py03PluginModule::create)
+                        .withMachineFactory(PythonPlugin::create)
                         .withImportValues(
                                 ImportValues.builder()
                                         .addFunction(wasi.toHostFunctions())
@@ -106,66 +122,12 @@ public final class Engine implements AutoCloseable {
                                         .build())
                         .build();
         exports = new Engine_ModuleExports(instance);
-        exports.initializeRuntime();
+        exports.pluginInit();
     }
 
     private String readpy03String(int ptr, int len) {
         var bytes = instance.memory().readBytes(ptr, len);
         return new String(bytes, UTF_8);
-    }
-
-    public Object invokeGuestFunction(
-            String moduleName, String name, List<Object> args, String libraryCode) {
-        return invokePrecompiledGuestFunction(
-                moduleName, name, args, compilePortableGuestFunction(libraryCode));
-    }
-
-    public String invokeFunction() {
-        var funInvoke =
-                "globalThis[cpython4j_engine.module_name()][cpython4j_engine.function_name()](...JSON.parse(cpython4j_engine.args()))";
-        Function<String, String> setResult =
-                (value) ->
-                        "java_invoke(cpython4j_engine.module_name(),"
-                                + " cpython4j_engine.function_name() + \"_set_result\","
-                                + " JSON.stringify(["
-                                + value
-                                + "]))";
-
-        return "Promise.resolve("
-                + funInvoke
-                + ").then((value) => { "
-                + setResult.apply("value")
-                + " }, (err) => { throw err; })";
-    }
-
-    // Plan:
-    // we compile a static version of the module and we invoke it parametrically using a basic
-    // protocol
-    // { moduleName: "..", functionName: "..", args: "stringified args" }
-    public byte[] compilePortableGuestFunction(String libraryCode) {
-        int codePtr = 0;
-        try {
-            var invokeFunction = invokeFunction();
-
-            String jsCode =
-                    new String(jsPrelude(), UTF_8)
-                            + "\n"
-                            + libraryCode
-                            + "\n"
-                            + new String(jsSuffix(), UTF_8)
-                            + "\n"
-                            + invokeFunction
-                            + ";\n";
-
-            // System.out.println(jsCode);
-
-            codePtr = compileRaw(jsCode.getBytes(UTF_8));
-            return readCompiled(codePtr);
-        } finally {
-            if (codePtr != 0) {
-                free(codePtr);
-            }
-        }
     }
 
     private String computeArgs(String moduleName, String name, List<Object> args) {
@@ -197,24 +159,6 @@ public final class Engine implements AutoCloseable {
         }
 
         return "[" + paramsStr + "]";
-    }
-
-    public Object invokePrecompiledGuestFunction(
-            String moduleName, String name, List<Object> args, byte[] compiledCode) {
-        int codePtr = 0;
-        try {
-            this.invokeModuleName = moduleName;
-            this.invokeFunctionName = name;
-            this.invokeArgs = computeArgs(moduleName, name, args);
-            codePtr = writeCompiled(compiledCode);
-            exec(codePtr);
-        } finally {
-            if (codePtr != 0) {
-                free(codePtr);
-            }
-        }
-
-        return invokables.get(moduleName).byName(name).getResult();
     }
 
     private long[] invokeBuiltin(Instance instance, long[] args) {
@@ -269,23 +213,11 @@ public final class Engine implements AutoCloseable {
                             : mapper.writerFor(returnType).writeValueAsString(res);
             var returnBytes = returnStr.getBytes();
 
-            var returnPtr =
-                    exports.canonicalAbiRealloc(
-                            0, // original_ptr
-                            0, // original_size
-                            ALIGNMENT, // alignment
-                            returnBytes.length // new size
-                            );
+            var returnPtr = exports.pluginMalloc(returnBytes.length);
             exports.memory().write(returnPtr, returnBytes);
 
             var LEN = 8;
-            var widePtr =
-                    exports.canonicalAbiRealloc(
-                            0, // original_ptr
-                            0, // original_size
-                            ALIGNMENT, // alignment
-                            LEN // new size
-                            );
+            var widePtr = exports.pluginMalloc(LEN);
 
             instance.memory().writeI32(widePtr, returnPtr);
             instance.memory().writeI32(widePtr + 4, returnBytes.length);
@@ -299,7 +231,7 @@ public final class Engine implements AutoCloseable {
     private final HostFunction invokeFn =
             new HostFunction(
                     "chicory",
-                    "invoke",
+                    "wasm_invoke",
                     List.of(
                             ValueType.I32,
                             ValueType.I32,
@@ -313,117 +245,72 @@ public final class Engine implements AutoCloseable {
     // This function dynamically generates the global functions defined by the Builtins
     private byte[] jsPrelude() {
         var preludeBuilder = new StringBuilder();
-        for (Map.Entry<String, Builtins> builtin : builtins.entrySet()) {
-            preludeBuilder.append("globalThis." + builtin.getKey() + " = {};\n");
-            for (var func : builtins.get(builtin.getKey()).functions()) {
-                preludeBuilder.append(
-                        "globalThis."
-                                + builtin.getKey()
-                                + "."
-                                + func.name()
-                                + " = (...args) => { return JSON.parse(java_invoke(\""
-                                + builtin.getKey()
-                                + "\", \""
-                                + func.name()
-                                + "\", JSON.stringify(args))) };\n");
-            }
-        }
+        preludeBuilder.append("import builtins\n");
+        preludeBuilder.append("import pyo3_plugin\n");
+        preludeBuilder.append("builtins.pyo3_plugin = pyo3_plugin\n");
+
+        // example:
+        // import builtins
+        // import math
+        //
+        // # Add all of math’s attributes to builtins
+        //        for name in dir(math):
+        //        if not name.startswith("_"):  # skip private stuff
+        //        setattr(builtins, name, getattr(math, name))
+        //
+        // # Now everything from math is globally available
+        //        print(sin(pi / 2))  # no import, just works
+        //        print(sqrt(81))
+
+        //        for (Map.Entry<String, Builtins> builtin : builtins.entrySet()) {
+        //            preludeBuilder.append("globalThis." + builtin.getKey() + " = {};\n");
+        //            for (var func : builtins.get(builtin.getKey()).functions()) {
+        //                preludeBuilder.append(
+        //                        "globalThis."
+        //                                + builtin.getKey()
+        //                                + "."
+        //                                + func.name()
+        //                                + " = (...args) => { return JSON.parse(java_invoke(\""
+        //                                + builtin.getKey()
+        //                                + "\", \""
+        //                                + func.name()
+        //                                + "\", JSON.stringify(args))) };\n");
+        //            }
+        //        }
         return preludeBuilder.toString().getBytes();
     }
 
     // This function dynamically generates the js handlers for Invokables
     private byte[] jsSuffix() {
         var suffixBuilder = new StringBuilder();
-        for (Map.Entry<String, Invokables> invokable : invokables.entrySet()) {
-            // The object is already defined by the set_result, just add the handlers
-            for (var func : invokables.get(invokable.getKey()).functions()) {
-                // exporting to global the functions
-                suffixBuilder.append(
-                        "globalThis."
-                                + invokable.getKey()
-                                + "."
-                                + func.name()
-                                + " = "
-                                + func.globalName()
-                                + ";\n");
-            }
-        }
+        //        for (Map.Entry<String, Invokables> invokable : invokables.entrySet()) {
+        //            // The object is already defined by the set_result, just add the handlers
+        //            for (var func : invokables.get(invokable.getKey()).functions()) {
+        //                // exporting to global the functions
+        //                suffixBuilder.append(
+        //                        "globalThis."
+        //                                + invokable.getKey()
+        //                                + "."
+        //                                + func.name()
+        //                                + " = "
+        //                                + func.globalName()
+        //                                + ";\n");
+        //            }
+        //        }
         return suffixBuilder.toString().getBytes();
     }
 
-    public int compile(String js) {
-        return compile(js.getBytes(UTF_8));
-    }
-
-    public int compile(byte[] js) {
+    public void exec(byte[] py) {
         byte[] prelude = jsPrelude();
-        byte[] jsCode = new byte[prelude.length + js.length];
-        System.arraycopy(prelude, 0, jsCode, 0, prelude.length);
-        System.arraycopy(js, 0, jsCode, prelude.length, js.length);
+        byte[] pyCode = new byte[prelude.length + py.length];
+        System.arraycopy(prelude, 0, pyCode, 0, prelude.length);
+        System.arraycopy(py, 0, pyCode, prelude.length, py.length);
 
-        return compileRaw(jsCode);
-    }
-
-    public int compileRaw(byte[] js) {
-        if (cache.exists(js)) {
-            return writeCompiled(cache.get(js));
-        }
-
-        byte[] jsCode = js;
-
-        var ptr =
-                exports.canonicalAbiRealloc(
-                        0, // original_ptr
-                        0, // original_size
-                        ALIGNMENT, // alignment
-                        jsCode.length // new size
-                        );
-
-        exports.memory().write(ptr, jsCode);
-        try {
-            var aggregatedCodePtr = exports.compileSrc(ptr, jsCode.length);
-            exports.canonicalAbiFree(
-                    ptr, // ptr
-                    jsCode.length, // length
-                    ALIGNMENT // alignement
-                    );
-
-            // TODO: debug
-            // System.out.println("Final JavaScript RAW:\n" + new String(jsCode, UTF_8));
-
-            cache.set(js, readCompiled(aggregatedCodePtr));
-
-            return aggregatedCodePtr; // 32 bit
-        } catch (TrapException e) {
-            try {
-                stderr.flush();
-                stdout.flush();
-            } catch (IOException ex) {
-                throw new RuntimeException("Failed to flush stdout/stderr");
-            }
-
-            throw new IllegalArgumentException(
-                    "Failed to compile JS code:\n"
-                            + new String(jsCode, UTF_8)
-                            + "\nstderr: "
-                            + stderr.toString(UTF_8)
-                            + "\nstdout: "
-                            + stdout.toString(UTF_8),
-                    e);
-        }
-    }
-
-    public void exec(int codePtr) {
-        var ptr = exports.memory().readInt(codePtr);
-        var codeLength = exports.memory().readInt(codePtr + 4);
+        var codePtr = exports.pluginMalloc(pyCode.length);
+        instance.memory().write(codePtr, pyCode);
 
         try {
-            exports.invoke(
-                    ptr, // bytecode_ptr
-                    codeLength, // bytecode_len
-                    0, // fn_name_ptr
-                    0 // fn_name_len
-                    );
+            exports.pluginEval(codePtr, pyCode.length);
         } catch (TrapException e) {
             try {
                 stderr.flush();
@@ -460,48 +347,12 @@ public final class Engine implements AutoCloseable {
         return stderr.toString(UTF_8);
     }
 
-    public void free(int codePtr) {
-        var ptr = exports.memory().readInt(codePtr);
-        var codeLength = exports.memory().readInt(codePtr + 4);
-
-        exports.canonicalAbiFree(
-                ptr, // ptr
-                codeLength, // length
-                ALIGNMENT // alignement
-                );
-    }
-
-    public byte[] readCompiled(int codePtr) {
-        var ptr = exports.memory().readInt(codePtr);
-        var codeLength = exports.memory().readInt(codePtr + 4);
-
-        return exports.memory().readBytes(ptr, codeLength);
-    }
-
-    public int writeCompiled(byte[] jsBytecode) {
-        var ptr =
-                exports.canonicalAbiRealloc(
-                        0, // original_ptr
-                        0, // original_size
-                        ALIGNMENT, // alignment
-                        8 // new size
-                        );
-
-        var codePtr =
-                exports.canonicalAbiRealloc(
-                        0, // original_ptr
-                        0, // original_size
-                        ALIGNMENT, // alignment
-                        jsBytecode.length // new size
-                        );
-
-        exports.memory().write(codePtr, jsBytecode);
-
-        exports.memory().writeI32(ptr, codePtr);
-        exports.memory().writeI32(ptr + 4, jsBytecode.length);
-
-        return ptr;
-    }
+    //    public void free(int codePtr) {
+    //        var ptr = exports.memory().readInt(codePtr);
+    //        var codeLength = exports.memory().readInt(codePtr + 4);
+    //
+    //        exports.pluginFree(codePtr);
+    //    }
 
     @Override
     public void close() {
@@ -524,6 +375,13 @@ public final class Engine implements AutoCloseable {
                 throw new RuntimeException("Failed to close stderr", e);
             }
         }
+        if (fs != null) {
+            try {
+                fs.close();
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to close fs", e);
+            }
+        }
     }
 
     public static final class Builder {
@@ -531,7 +389,6 @@ public final class Engine implements AutoCloseable {
         private List<Invokables> invokables = new ArrayList<>();
         private ObjectMapper mapper;
         private Function<MemoryLimits, Memory> memoryFactory;
-        private ScriptCache cache;
         private Logger logger;
 
         private Builder() {}
@@ -553,11 +410,6 @@ public final class Engine implements AutoCloseable {
 
         public Builder withMemoryFactory(Function<MemoryLimits, Memory> memoryFactory) {
             this.memoryFactory = memoryFactory;
-            return this;
-        }
-
-        public Builder withCache(ScriptCache cache) {
-            this.cache = cache;
             return this;
         }
 
@@ -583,13 +435,10 @@ public final class Engine implements AutoCloseable {
             for (var invokable : invokables) {
                 finalInvokables.put(invokable.moduleName(), invokable);
             }
-            if (cache == null) {
-                cache = new BasicScriptCache();
-            }
             if (logger == null) {
                 logger = new SystemLogger();
             }
-            return new Engine(finalBuiltins, finalInvokables, mapper, memoryFactory, cache, logger);
+            return new Engine(finalBuiltins, finalInvokables, mapper, memoryFactory, logger);
         }
     }
 }

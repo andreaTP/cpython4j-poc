@@ -3,17 +3,16 @@ name = "pyo3-plugin"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [lib]
 name = "pyo3_plugin"
 crate-type = ["cdylib"]
 
+[profile.release]
+opt-level = "s"
+debug = false
+
 [dependencies]
 pyo3 = { version = "0.26.0", features = ["generate-import-lib", "abi3-py311"] }
-# TODO: seems not necessary, only needed to build the PYTHONPATH I guess
-# wlr-libpy = { git = "https://github.com/vmware-labs/webassembly-language-runtimes.git", features = [
-#    "py_main",
-#] }
 
 [build-dependencies]
 wlr-libpy = { git = "https://github.com/vmware-labs/webassembly-language-runtimes.git", features = ["build"] }

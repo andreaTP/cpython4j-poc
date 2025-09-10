@@ -37,6 +37,12 @@
       <version>${jackson.version}</version>
     </dependency>
 
+    <dependency>
+      <groupId>io.roastedroot</groupId>
+      <artifactId>zerofs</artifactId>
+      <version>${zerofs.version}</version>
+    </dependency>
+
     <!-- ============= Testing ============= -->
     <dependency>
       <groupId>org.junit.jupiter</groupId>
@@ -86,8 +92,12 @@
               <goal>compile</goal>
             </goals>
             <configuration>
-              <name>io.roastedroot.cpython4j.core.py03PluginModule</name>
-              <wasmFile>../py03_cpython4j_plugin.wasm</wasmFile>
+              <name>io.roastedroot.cpython4j.core.PythonPlugin</name>
+              <wasmFile>../pyo3_plugin-opt.wasm</wasmFile>
+              <interpretedFunctions>
+                <function>2712</function>
+                <function>7776</function>
+              </interpretedFunctions>
             </configuration>
           </execution>
         </executions>
