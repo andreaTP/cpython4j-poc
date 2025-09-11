@@ -39,7 +39,7 @@ pub extern "C" fn plugin_init() {
                 .unwrap()
                 .set_item("pyo3_plugin", module)
                 .unwrap();
-            println!("Python runtime initialized and pyo3_plugin module registered");
+            // println!("Python runtime initialized and pyo3_plugin module registered");
         });
     });
 }
@@ -59,7 +59,7 @@ pub extern "C" fn plugin_eval(ptr: *const u8, length: usize) {
     };
     
     // Debug: print what we're about to execute
-    println!("Executing Python code: {:?}", code);
+    // println!("Executing Python code: {:?}", code);
     
     // Execute the Python code
     Python::attach(|py| {

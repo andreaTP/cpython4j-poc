@@ -27,13 +27,13 @@ public class EngineTest {
 
         // Act
         engine.exec(
-                "print(pyo3_plugin.invoke(\"from_java\", \"imported_function\", [\"ciao\"]))"
-                        .getBytes(StandardCharsets.UTF_8));
+                "print(from_java.imported_function(\"ciao\"))".getBytes(StandardCharsets.UTF_8));
 
         engine.close();
 
         // Assert
         assertTrue(invoked.get());
+        assertEquals("{ received: ciao }\n", engine.stdout());
     }
     //
     //    public static int add(int a, int b) {

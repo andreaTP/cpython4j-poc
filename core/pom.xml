@@ -94,6 +94,7 @@
             <configuration>
               <name>io.roastedroot.cpython4j.core.PythonPlugin</name>
               <wasmFile>../pyo3_plugin-opt.wasm</wasmFile>
+              <!-- TODO: review those exclusions -->
               <interpretedFunctions>
                 <function>2712</function>
                 <function>7776</function>

@@ -74,20 +74,21 @@ public final class Engine implements AutoCloseable {
         this.builtins = builtins;
 
         // builtins to make invoke dynamic javascript functions
-        builtins.put(
-                ENGINE_MODULE_NAME,
-                Builtins.builder(ENGINE_MODULE_NAME)
-                        .addVoidToString(MODULE_NAME_FUNC, () -> invokeModuleName)
-                        .addVoidToString(FUNCTION_NAME_FUNC, () -> invokeFunctionName)
-                        .addVoidToString(ARGS_FUNC, () -> invokeArgs)
-                        .build());
+        // TODO: we should be able to use Py03 functions for doing this
+        //        builtins.put(
+        //                ENGINE_MODULE_NAME,
+        //                Builtins.builder(ENGINE_MODULE_NAME)
+        //                        .addVoidToString(MODULE_NAME_FUNC, () -> invokeModuleName)
+        //                        .addVoidToString(FUNCTION_NAME_FUNC, () -> invokeFunctionName)
+        //                        .addVoidToString(ARGS_FUNC, () -> invokeArgs)
+        //                        .build());
 
         var wasiOptsBuilder = WasiOptions.builder().withStdout(stdout).withStderr(stderr);
         this.fs =
                 ZeroFs.newFileSystem(
                         Configuration.unix().toBuilder().setAttributeViews("unix").build());
 
-        // TODO: FIXME
+        // TODO: FIXME - ideally we can bake the FS into wasm
         Path inputFolder = fs.getPath("/usr");
         Path copyFrom = Path.of("../pyo3-plugin/target/wasm32-wasi/wasi-deps/usr");
         try {
@@ -245,59 +246,25 @@ public final class Engine implements AutoCloseable {
     // This function dynamically generates the global functions defined by the Builtins
     private byte[] jsPrelude() {
         var preludeBuilder = new StringBuilder();
-        preludeBuilder.append("import builtins\n");
-        preludeBuilder.append("import pyo3_plugin\n");
-        preludeBuilder.append("builtins.pyo3_plugin = pyo3_plugin\n");
-
-        // example:
-        // import builtins
-        // import math
-        //
-        // # Add all of math’s attributes to builtins
-        //        for name in dir(math):
-        //        if not name.startswith("_"):  # skip private stuff
-        //        setattr(builtins, name, getattr(math, name))
-        //
-        // # Now everything from math is globally available
-        //        print(sin(pi / 2))  # no import, just works
-        //        print(sqrt(81))
-
-        //        for (Map.Entry<String, Builtins> builtin : builtins.entrySet()) {
-        //            preludeBuilder.append("globalThis." + builtin.getKey() + " = {};\n");
-        //            for (var func : builtins.get(builtin.getKey()).functions()) {
-        //                preludeBuilder.append(
-        //                        "globalThis."
-        //                                + builtin.getKey()
-        //                                + "."
-        //                                + func.name()
-        //                                + " = (...args) => { return JSON.parse(java_invoke(\""
-        //                                + builtin.getKey()
-        //                                + "\", \""
-        //                                + func.name()
-        //                                + "\", JSON.stringify(args))) };\n");
-        //            }
-        //        }
+        preludeBuilder.append("import builtins, json, pyo3_plugin\n");
+        preludeBuilder.append("from types import SimpleNamespace\n");
+        for (Map.Entry<String, Builtins> builtin : builtins.entrySet()) {
+            preludeBuilder.append("builtins." + builtin.getKey() + " = SimpleNamespace()\n");
+            for (var func : builtins.get(builtin.getKey()).functions()) {
+                var functionBuiltin =
+                        "builtins."
+                                + builtin.getKey()
+                                + "."
+                                + func.name()
+                                + " = lambda *args: json.loads(pyo3_plugin.invoke(\""
+                                + builtin.getKey()
+                                + "\", \""
+                                + func.name()
+                                + "\", json.dumps(args)))\n";
+                preludeBuilder.append(functionBuiltin);
+            }
+        }
         return preludeBuilder.toString().getBytes();
-    }
-
-    // This function dynamically generates the js handlers for Invokables
-    private byte[] jsSuffix() {
-        var suffixBuilder = new StringBuilder();
-        //        for (Map.Entry<String, Invokables> invokable : invokables.entrySet()) {
-        //            // The object is already defined by the set_result, just add the handlers
-        //            for (var func : invokables.get(invokable.getKey()).functions()) {
-        //                // exporting to global the functions
-        //                suffixBuilder.append(
-        //                        "globalThis."
-        //                                + invokable.getKey()
-        //                                + "."
-        //                                + func.name()
-        //                                + " = "
-        //                                + func.globalName()
-        //                                + ";\n");
-        //            }
-        //        }
-        return suffixBuilder.toString().getBytes();
     }
 
     public void exec(byte[] py) {
