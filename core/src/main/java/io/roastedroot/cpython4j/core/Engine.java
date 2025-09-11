@@ -89,14 +89,20 @@ public final class Engine implements AutoCloseable {
                         Configuration.unix().toBuilder().setAttributeViews("unix").build());
 
         // TODO: FIXME - ideally we can bake the FS into wasm
-//        Path inputFolder = fs.getPath("/usr");
-//        Path copyFrom = Path.of("../pyo3-plugin/target/wasm32-wasi/wasi-deps/usr");
-//        try {
-//            Files.copyDirectory(copyFrom, inputFolder);
-//        } catch (IOException e) {
-//            throw new RuntimeException(e);
-//        }
-//        wasiOptsBuilder.withDirectory(inputFolder.toString(), inputFolder);
+        // this should not be needed ... try again on Python 3.13 maybe
+        // check again
+        // pyo3-plugin/webassembly-language-runtimes/python/examples/embedding/wasi-py-rs-pyo3/README.md
+        // and https://github.com/trinodb/trino-wasm-python
+        Path inputFolder = fs.getPath("/usr");
+        Path copyFrom = Path.of("../pyo3-plugin/target/wasm32-wasi/wasi-deps/usr");
+        try {
+            Files.copyDirectory(copyFrom, inputFolder);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        wasiOptsBuilder.withDirectory(inputFolder.toString(), inputFolder);
+
+        wasiOptsBuilder.withEnvironment("PYTHONDONTWRITEBYTECODE", "1");
 
         this.wasiOpts = wasiOptsBuilder.build();
         this.wasi = WasiPreview1.builder().withOptions(this.wasiOpts).withLogger(logger).build();

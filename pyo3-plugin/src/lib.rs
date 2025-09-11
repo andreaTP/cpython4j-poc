@@ -10,6 +10,9 @@ extern "C" {
 // Global flag to track if Python runtime is initialized
 static INIT: Once = Once::new();
 
+// Global VFS instance - not needed for the export function
+// static mut VFS: Option<wasi_vfs::WasiVfs> = None;
+
 // Re-export WASI's malloc and free functions with different names
 #[no_mangle]
 pub extern "C" fn plugin_malloc(size: usize) -> *mut u8 {
@@ -133,8 +136,17 @@ fn pyo3_plugin(m: &Bound<'_, PyModule>) -> PyResult<()> {
     Ok(())
 }
 
+#[export_name = "wasi_vfs_pack_fs"]
+pub extern "C" fn init_vfs() {
+    init();
+}
+
 #[export_name = "wizer.initialize"]
-extern "C" fn init() {
+pub extern "C" fn init() {
+    // Set environment variables to configure Python before initialization
+    std::env::set_var("PYTHONHOME", "/usr/local");
+    std::env::set_var("PYTHONPATH", "/usr/local/lib/python3.11");
+    
     // Initialize Python runtime
     Python::initialize();
     
@@ -143,7 +155,7 @@ extern "C" fn init() {
     
     // Pre-initialize the environment with some basic Python code
     Python::attach(|py| -> PyResult<()> {
-        // Set up basic Python environment
+        // Set up basic Python environment and preload critical modules
         let init_code = r#"
 import sys
 print("Python environment pre-initialized")
@@ -152,8 +164,7 @@ print("pyo3_plugin module available for import")
 "#;
         
         let c_string = std::ffi::CString::new(init_code).unwrap();
-        py.run(&c_string, None, None)?;
-        Ok(())
+        py.run(&c_string, None, None)
     })
     .expect("Failed to pre-initialize Python environment");
 }
