@@ -3,8 +3,8 @@ package io.roastedroot.cpython4j.core;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.nio.charset.StandardCharsets;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import org.junit.jupiter.api.Test;
 
 public class EngineTest {
@@ -26,8 +26,7 @@ public class EngineTest {
         var engine = Engine.builder().addBuiltins(builtins).build();
 
         // Act
-        engine.exec(
-                "print(from_java.imported_function(\"ciao\"))".getBytes(StandardCharsets.UTF_8));
+        engine.exec("print(from_java.imported_function(\"ciao\"))");
 
         engine.close();
 
@@ -35,45 +34,39 @@ public class EngineTest {
         assertTrue(invoked.get());
         assertEquals("{ received: ciao }\n", engine.stdout());
     }
-    //
-    //    public static int add(int a, int b) {
-    //        return a + b;
-    //    }
-    //
-    //    public static Consumer<Integer> check(int expected) {
-    //        return (v) -> assertEquals(expected, v);
-    //    }
-    //
-    //    @Test
-    //    public void callJavaFunctionsFromJS() {
-    //        var builtins = Builtins.builder("java").addIntIntToInt("add",
-    // EngineTest::add).build();
-    //
-    //        var engine = Engine.builder().build().builder().addBuiltins(builtins).build();
-    //
-    //        var codePtr = engine.compile("java.add(40, 1);");
-    //        engine.exec(codePtr);
-    //        engine.free(codePtr);
-    //        engine.close();
-    //    }
-    //
-    //    @Test
-    //    public void callJavaFunctionsFromDifferentBundlesFromJS() {
-    //        var calculatorBuiltins =
-    //                Builtins.builder("calculator").addIntIntToInt("add", EngineTest::add).build();
-    //        var checkBuiltins =
-    //                Builtins.builder("from_java").addIntToVoid("check",
-    // EngineTest.check(42)).build();
-    //
-    //        var engine =
-    //
-    // Engine.builder().addBuiltins(calculatorBuiltins).addBuiltins(checkBuiltins).build();
-    //
-    //        var codePtr = engine.compile("from_java.check(calculator.add(40, 2));");
-    //        engine.exec(codePtr);
-    //        engine.free(codePtr);
-    //        engine.close();
-    //    }
+
+    public static int add(int a, int b) {
+        return a + b;
+    }
+
+    public static Consumer<Integer> check(int expected) {
+        return (v) -> assertEquals(expected, v);
+    }
+
+    @Test
+    public void callJavaFunctionsFromPython() {
+        var builtins = Builtins.builder("java").addIntIntToInt("add", EngineTest::add).build();
+
+        var engine = Engine.builder().build().builder().addBuiltins(builtins).build();
+
+        engine.exec("java.add(40, 1)");
+
+        engine.close();
+    }
+
+    @Test
+    public void callJavaFunctionsFromDifferentBundlesFromPython() {
+        var calculatorBuiltins =
+                Builtins.builder("calculator").addIntIntToInt("add", EngineTest::add).build();
+        var checkBuiltins =
+                Builtins.builder("from_java").addIntToVoid("check", EngineTest.check(42)).build();
+
+        var engine =
+                Engine.builder().addBuiltins(calculatorBuiltins).addBuiltins(checkBuiltins).build();
+
+        engine.exec("from_java.check(calculator.add(40, 2))");
+        engine.close();
+    }
     //
     //    @Test
     //    public void callJavaFunctionsFromJSNegativeCheck() {

@@ -133,3 +133,27 @@ fn pyo3_plugin(m: &Bound<'_, PyModule>) -> PyResult<()> {
     Ok(())
 }
 
+#[export_name = "wizer.initialize"]
+extern "C" fn init() {
+    // Initialize Python runtime
+    Python::initialize();
+    
+    // Initialize Python runtime and register our module
+    plugin_init();
+    
+    // Pre-initialize the environment with some basic Python code
+    Python::attach(|py| -> PyResult<()> {
+        // Set up basic Python environment
+        let init_code = r#"
+import sys
+print("Python environment pre-initialized")
+print(f"Python version: {sys.version}")
+print("pyo3_plugin module available for import")
+"#;
+        
+        let c_string = std::ffi::CString::new(init_code).unwrap();
+        py.run(&c_string, None, None)?;
+        Ok(())
+    })
+    .expect("Failed to pre-initialize Python environment");
+}

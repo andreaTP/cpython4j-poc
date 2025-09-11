@@ -89,14 +89,14 @@ public final class Engine implements AutoCloseable {
                         Configuration.unix().toBuilder().setAttributeViews("unix").build());
 
         // TODO: FIXME - ideally we can bake the FS into wasm
-        Path inputFolder = fs.getPath("/usr");
-        Path copyFrom = Path.of("../pyo3-plugin/target/wasm32-wasi/wasi-deps/usr");
-        try {
-            Files.copyDirectory(copyFrom, inputFolder);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-        wasiOptsBuilder.withDirectory(inputFolder.toString(), inputFolder);
+//        Path inputFolder = fs.getPath("/usr");
+//        Path copyFrom = Path.of("../pyo3-plugin/target/wasm32-wasi/wasi-deps/usr");
+//        try {
+//            Files.copyDirectory(copyFrom, inputFolder);
+//        } catch (IOException e) {
+//            throw new RuntimeException(e);
+//        }
+//        wasiOptsBuilder.withDirectory(inputFolder.toString(), inputFolder);
 
         this.wasiOpts = wasiOptsBuilder.build();
         this.wasi = WasiPreview1.builder().withOptions(this.wasiOpts).withLogger(logger).build();
@@ -265,6 +265,10 @@ public final class Engine implements AutoCloseable {
             }
         }
         return preludeBuilder.toString().getBytes();
+    }
+
+    public void exec(String py) {
+        exec(py.getBytes(UTF_8));
     }
 
     public void exec(byte[] py) {

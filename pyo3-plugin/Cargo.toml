@@ -8,7 +8,7 @@ name = "pyo3_plugin"
 crate-type = ["cdylib"]
 
 [profile.release]
-opt-level = "s"
+opt-level = "z"
 debug = false
 
 [dependencies]

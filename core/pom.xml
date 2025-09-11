@@ -94,11 +94,12 @@
             <configuration>
               <name>io.roastedroot.cpython4j.core.PythonPlugin</name>
               <wasmFile>../pyo3_plugin-opt.wasm</wasmFile>
+              <interpreterFallback>WARN</interpreterFallback>
               <!-- TODO: review those exclusions -->
-              <interpretedFunctions>
+              <!-- <interpretedFunctions>
                 <function>2712</function>
                 <function>7776</function>
-              </interpretedFunctions>
+              </interpretedFunctions> -->
             </configuration>
           </execution>
         </executions>
