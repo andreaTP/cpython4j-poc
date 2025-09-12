@@ -730,6 +730,7 @@ name = "pyo3-plugin"
 version = "0.1.0"
 dependencies = [
  "pyo3",
+ "pyo3-ffi",
  "wlr-libpy",
 ]
 

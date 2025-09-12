@@ -136,16 +136,20 @@ fn pyo3_plugin(m: &Bound<'_, PyModule>) -> PyResult<()> {
     Ok(())
 }
 
-#[export_name = "wasi_vfs_pack_fs"]
-pub extern "C" fn init_vfs() {
-    init();
-}
+// #[link(name = "wasi_vfs", kind = "static")] // Rust will link libwasi_vfs.a
+// extern "C" {
+//     pub fn wasi_vfs_pack_fs();
+// }
 
 #[export_name = "wizer.initialize"]
 pub extern "C" fn init() {
+    print!("Starting wizer.initialize\n");
+    
     // Set environment variables to configure Python before initialization
     std::env::set_var("PYTHONHOME", "/usr/local");
-    std::env::set_var("PYTHONPATH", "/usr/local/lib/python3.11");
+    // std::env::set_var("PYTHONPATH", "/usr/local/lib/python3.11");
+    std::env::set_var("PYTHONPATH", "/usr/local/lib/python311.zip");
+    std::env::set_var("PYTHONDONTWRITEBYTECODE", "1");
     
     // Initialize Python runtime
     Python::initialize();
@@ -158,8 +162,18 @@ pub extern "C" fn init() {
         // Set up basic Python environment and preload critical modules
         let init_code = r#"
 import sys
+import os
 print("Python environment pre-initialized")
 print(f"Python version: {sys.version}")
+print(f"Python executable: {sys.executable}")
+print(f"Python path: {sys.path}")
+print(f"Python home: {sys.prefix}")
+try:
+    print(f"Current working directory: {os.getcwd()}")
+except Exception as e:
+    print(f"Failed to get working directory: {e}")
+print(f"Environment PYTHONHOME: {os.environ.get('PYTHONHOME', 'Not set')}")
+print(f"Environment PYTHONPATH: {os.environ.get('PYTHONPATH', 'Not set')}")
 print("pyo3_plugin module available for import")
 "#;
         

@@ -20,6 +20,7 @@ build:
 		-o pyo3_plugin_with_fs.wasm
 
 	# Use wizer to initialize the WASM
+	# --mapdir="/usr::target/wasm32-wasi/wasi-deps/usr" \
 	wizer \
 		--allow-wasi \
 		--wasm-bulk-memory true \
