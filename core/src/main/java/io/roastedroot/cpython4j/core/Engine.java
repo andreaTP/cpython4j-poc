@@ -88,7 +88,7 @@ public final class Engine implements AutoCloseable {
                 ZeroFs.newFileSystem(
                         Configuration.unix().toBuilder().setAttributeViews("unix").build());
 
-        // TODO: FIXME - ideally we can bake the FS into wasm
+        // TODO: FIXME - we should bake the FS into wasm - but it doesn't seem to work ...
         // this should not be needed ... try again on Python 3.13 maybe
         // check again
         // pyo3-plugin/webassembly-language-runtimes/python/examples/embedding/wasi-py-rs-pyo3/README.md

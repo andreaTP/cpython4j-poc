@@ -20,11 +20,13 @@ build:
 		-o pyo3_plugin_with_fs.wasm
 
 	# Use wizer to initialize the WASM
+	# Wasi-vfs is not working - retry later - or completely remove it?
 	wizer \
 		--allow-wasi \
 		--wasm-bulk-memory true \
 		--inherit-stdio true \
 		--inherit-env true \
+		--mapdir="/usr::target/wasm32-wasi/wasi-deps/usr" \
 		pyo3_plugin_with_fs.wasm -o pyo3_plugin_initialized.wasm
 
 	wasm-opt -Oz pyo3_plugin_initialized.wasm -o ../pyo3_plugin-opt.wasm

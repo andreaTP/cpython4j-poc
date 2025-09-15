@@ -136,11 +136,6 @@ fn pyo3_plugin(m: &Bound<'_, PyModule>) -> PyResult<()> {
     Ok(())
 }
 
-#[export_name = "wasi_vfs_pack_fs"]
-pub extern "C" fn init_vfs() {
-    init();
-}
-
 #[export_name = "wizer.initialize"]
 pub extern "C" fn init() {
     // Set environment variables to configure Python before initialization
