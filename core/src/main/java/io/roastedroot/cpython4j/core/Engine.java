@@ -33,7 +33,6 @@ import java.util.function.Function;
 
 @WasmModuleInterface(WasmResource.absoluteFile)
 public final class Engine implements AutoCloseable {
-    private static final int ALIGNMENT = 1;
     public static final ObjectMapper DEFAULT_OBJECT_MAPPER = new ObjectMapper();
 
     private final ByteArrayOutputStream stdout = new ByteArrayOutputStream();
@@ -59,6 +58,21 @@ public final class Engine implements AutoCloseable {
     private String invokeModuleName;
     private String invokeFunctionName;
     private String invokeArgs;
+
+    // TODO: remove those, just for development purposes
+    public WasiPreview1 wasi() {
+        return wasi;
+    }
+
+    public Instance instance() {
+        return instance;
+    }
+
+    public Engine_ModuleExports exports() {
+        return exports;
+    }
+
+    // End of debugging sections
 
     public static Builder builder() {
         return new Builder();

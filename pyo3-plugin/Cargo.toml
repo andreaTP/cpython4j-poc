@@ -13,6 +13,7 @@ debug = false
 
 [dependencies]
 pyo3 = { version = "0.26.0", features = ["generate-import-lib", "abi3-py311"] }
+pyo3-ffi = "0.26.0"
 wlr-libpy = { git = "https://github.com/vmware-labs/webassembly-language-runtimes.git", features = [
     "py_main",
 ] }

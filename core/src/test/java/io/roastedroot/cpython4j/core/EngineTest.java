@@ -3,10 +3,18 @@ package io.roastedroot.cpython4j.core;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.dylibso.chicory.annotations.WasmModuleInterface;
+import com.dylibso.chicory.runtime.HostFunction;
+import com.dylibso.chicory.runtime.ImportValues;
+import com.dylibso.chicory.runtime.Instance;
+import com.dylibso.chicory.wasm.types.FunctionType;
+import com.dylibso.chicory.wasm.types.ValType;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import org.junit.jupiter.api.Test;
 
+@WasmModuleInterface("pyo3-example/pyo3_example.wasm")
 public class EngineTest {
 
     @Test
@@ -67,7 +75,713 @@ public class EngineTest {
         engine.exec("from_java.check(calculator.add(40, 2))");
         engine.close();
     }
-    //
+
+    @Test
+    public void dynLinkPyo3Examples() {
+        // Build a dummy engine
+        var engine = Engine.builder().build();
+
+        var imports = ImportValues.builder().addFunction(engine.wasi().toHostFunctions());
+
+        imports.addFunction(
+                new HostFunction(
+                        "env",
+                        "PyObject_Str",
+                        FunctionType.of(List.of(ValType.I32), List.of(ValType.I32)),
+                        (Instance instance, long... args) -> {
+                            return new long[] {engine.exports().pluginPyObjectStr((int) args[0])};
+                        }));
+
+        imports.addFunction(
+                new HostFunction(
+                        "env",
+                        "_Py_IncRef",
+                        List.of(ValType.I32),
+                        List.of(),
+                        (Instance instance, long... args) -> {
+                            engine.exports().pluginPyIncRef((int) args[0]);
+                            return null;
+                        }));
+        imports.addFunction(
+                new HostFunction(
+                        "env",
+                        "PyUnicode_FromStringAndSize",
+                        List.of(ValType.I32, ValType.I32),
+                        List.of(ValType.I32),
+                        (Instance instance, long... args) -> {
+                            return new long[] {
+                                (long)
+                                        engine.exports()
+                                                .pluginPyUnicodeFromStringAndSize(
+                                                        (int) args[0], (int) args[1])
+                            };
+                        }));
+        imports.addFunction(
+                new HostFunction(
+                        "env",
+                        "_Py_DecRef",
+                        List.of(ValType.I32),
+                        List.of(),
+                        (Instance instance, long... args) -> {
+                            engine.exports().pluginPyDecRef((int) args[0]);
+                            return null;
+                        }));
+        imports.addFunction(
+                new HostFunction(
+                        "env",
+                        "PyObject_Repr",
+                        List.of(ValType.I32),
+                        List.of(ValType.I32),
+                        (Instance instance, long... args) -> {
+                            return new long[] {
+                                (long) engine.exports().pluginPyObjectRepr((int) args[0])
+                            };
+                        }));
+        imports.addFunction(
+                new HostFunction(
+                        "env",
+                        "PyErr_Restore",
+                        List.of(ValType.I32, ValType.I32, ValType.I32),
+                        List.of(),
+                        (Instance instance, long... args) -> {
+                            engine.exports()
+                                    .pluginPyErrRestore(
+                                            (int) args[0], (int) args[1], (int) args[2]);
+                            return null;
+                        }));
+        imports.addFunction(
+                new HostFunction(
+                        "env",
+                        "PyErr_WriteUnraisable",
+                        List.of(ValType.I32),
+                        List.of(),
+                        (Instance instance, long... args) -> {
+                            engine.exports().pluginPyErrWriteUnraisable((int) args[0]);
+                            return null;
+                        }));
+        imports.addFunction(
+                new HostFunction(
+                        "env",
+                        "PyType_GetName",
+                        List.of(ValType.I32),
+                        List.of(ValType.I32),
+                        (Instance instance, long... args) -> {
+                            return new long[] {
+                                (long) engine.exports().pluginPyTypeGetName((int) args[0])
+                            };
+                        }));
+        imports.addFunction(
+                new HostFunction(
+                        "env",
+                        "PyObject_GetAttr",
+                        List.of(ValType.I32, ValType.I32),
+                        List.of(ValType.I32),
+                        (Instance instance, long... args) -> {
+                            return new long[] {
+                                (long)
+                                        engine.exports()
+                                                .pluginPyObjectGetAttr((int) args[0], (int) args[1])
+                            };
+                        }));
+        imports.addFunction(
+                new HostFunction(
+                        "env",
+                        "PyBytes_AsString",
+                        List.of(ValType.I32),
+                        List.of(ValType.I32),
+                        (Instance instance, long... args) -> {
+                            return new long[] {
+                                (long) engine.exports().pluginPyBytesAsString((int) args[0])
+                            };
+                        }));
+        imports.addFunction(
+                new HostFunction(
+                        "env",
+                        "PyBytes_Size",
+                        List.of(ValType.I32),
+                        List.of(ValType.I32),
+                        (Instance instance, long... args) -> {
+                            return new long[] {
+                                (long) engine.exports().pluginPyBytesSize((int) args[0])
+                            };
+                        }));
+        imports.addFunction(
+                new HostFunction(
+                        "env",
+                        "PyType_GetFlags",
+                        List.of(ValType.I32),
+                        List.of(ValType.I32),
+                        (Instance instance, long... args) -> {
+                            return new long[] {
+                                (long) engine.exports().pluginPyTypeGetFlags((int) args[0])
+                            };
+                        }));
+        imports.addFunction(
+                new HostFunction(
+                        "env",
+                        "PyErr_GivenExceptionMatches",
+                        List.of(ValType.I32, ValType.I32),
+                        List.of(ValType.I32),
+                        (Instance instance, long... args) -> {
+                            return new long[] {
+                                (long)
+                                        engine.exports()
+                                                .pluginPyErrGivenExceptionMatches(
+                                                        (int) args[0], (int) args[1])
+                            };
+                        }));
+        imports.addFunction(
+                new HostFunction(
+                        "env",
+                        "PyList_New",
+                        List.of(ValType.I32),
+                        List.of(ValType.I32),
+                        (Instance instance, long... args) -> {
+                            return new long[] {
+                                (long) engine.exports().pluginPyListNew((int) args[0])
+                            };
+                        }));
+        imports.addFunction(
+                new HostFunction(
+                        "env",
+                        "PyObject_SetAttr",
+                        List.of(ValType.I32, ValType.I32, ValType.I32),
+                        List.of(ValType.I32),
+                        (Instance instance, long... args) -> {
+                            return new long[] {
+                                (long)
+                                        engine.exports()
+                                                .pluginPyObjectSetAttr(
+                                                        (int) args[0], (int) args[1], (int) args[2])
+                            };
+                        }));
+        imports.addFunction(
+                new HostFunction(
+                        "env",
+                        "PyModule_GetNameObject",
+                        List.of(ValType.I32),
+                        List.of(ValType.I32),
+                        (Instance instance, long... args) -> {
+                            return new long[] {
+                                (long) engine.exports().pluginPyModuleGetNameObject((int) args[0])
+                            };
+                        }));
+        imports.addFunction(
+                new HostFunction(
+                        "env",
+                        "PyUnicode_AsUTF8AndSize",
+                        List.of(ValType.I32, ValType.I32),
+                        List.of(ValType.I32),
+                        (Instance instance, long... args) -> {
+                            return new long[] {
+                                (long)
+                                        engine.exports()
+                                                .pluginPyUnicodeAsUTF8AndSize(
+                                                        (int) args[0], (int) args[1])
+                            };
+                        }));
+        imports.addFunction(
+                new HostFunction(
+                        "env",
+                        "PyUnicode_AsEncodedString",
+                        List.of(ValType.I32, ValType.I32, ValType.I32),
+                        List.of(ValType.I32),
+                        (Instance instance, long... args) -> {
+                            return new long[] {
+                                (long)
+                                        engine.exports()
+                                                .pluginPyUnicodeAsEncodedString(
+                                                        (int) args[0], (int) args[1], (int) args[2])
+                            };
+                        }));
+        imports.addFunction(
+                new HostFunction(
+                        "env",
+                        "PyImport_Import",
+                        List.of(ValType.I32),
+                        List.of(ValType.I32),
+                        (Instance instance, long... args) -> {
+                            return new long[] {
+                                (long) engine.exports().pluginPyImportImport((int) args[0])
+                            };
+                        }));
+        imports.addFunction(
+                new HostFunction(
+                        "env",
+                        "PyObject_CallNoArgs",
+                        List.of(ValType.I32),
+                        List.of(ValType.I32),
+                        (Instance instance, long... args) -> {
+                            return new long[] {
+                                (long) engine.exports().pluginPyObjectCallNoArgs((int) args[0])
+                            };
+                        }));
+        imports.addFunction(
+                new HostFunction(
+                        "env",
+                        "PyTraceBack_Print",
+                        List.of(ValType.I32, ValType.I32),
+                        List.of(ValType.I32),
+                        (Instance instance, long... args) -> {
+                            return new long[] {
+                                (long)
+                                        engine.exports()
+                                                .pluginPyTraceBackPrint(
+                                                        (int) args[0], (int) args[1])
+                            };
+                        }));
+        imports.addFunction(
+                new HostFunction(
+                        "env",
+                        "PyTuple_Size",
+                        List.of(ValType.I32),
+                        List.of(ValType.I32),
+                        (Instance instance, long... args) -> {
+                            return new long[] {
+                                (long) engine.exports().pluginPyTupleSize((int) args[0])
+                            };
+                        }));
+        imports.addFunction(
+                new HostFunction(
+                        "env",
+                        "PyTuple_GetItem",
+                        List.of(ValType.I32, ValType.I32),
+                        List.of(ValType.I32),
+                        (Instance instance, long... args) -> {
+                            return new long[] {
+                                (long)
+                                        engine.exports()
+                                                .pluginPyTupleGetItem((int) args[0], (int) args[1])
+                            };
+                        }));
+        imports.addFunction(
+                new HostFunction(
+                        "env",
+                        "PyType_GetQualName",
+                        List.of(ValType.I32),
+                        List.of(ValType.I32),
+                        (Instance instance, long... args) -> {
+                            return new long[] {
+                                (long) engine.exports().pluginPyTypeGetQualName((int) args[0])
+                            };
+                        }));
+        imports.addFunction(
+                new HostFunction(
+                        "env",
+                        "PyErr_SetString",
+                        List.of(ValType.I32, ValType.I32),
+                        List.of(),
+                        (Instance instance, long... args) -> {
+                            engine.exports().pluginPyErrSetString((int) args[0], (int) args[1]);
+                            return null;
+                        }));
+        imports.addFunction(
+                new HostFunction(
+                        "env",
+                        "PyException_GetTraceback",
+                        List.of(ValType.I32),
+                        List.of(ValType.I32),
+                        (Instance instance, long... args) -> {
+                            return new long[] {
+                                (long) engine.exports().pluginPyExceptionGetTraceback((int) args[0])
+                            };
+                        }));
+        imports.addFunction(
+                new HostFunction(
+                        "env",
+                        "PyException_SetTraceback",
+                        List.of(ValType.I32, ValType.I32),
+                        List.of(ValType.I32),
+                        (Instance instance, long... args) -> {
+                            return new long[] {
+                                (long)
+                                        engine.exports()
+                                                .pluginPyExceptionSetTraceback(
+                                                        (int) args[0], (int) args[1])
+                            };
+                        }));
+        imports.addFunction(
+                new HostFunction(
+                        "env",
+                        "PyErr_PrintEx",
+                        List.of(ValType.I32),
+                        List.of(),
+                        (Instance instance, long... args) -> {
+                            engine.exports().pluginPyErrPrintEx((int) args[0]);
+                            return null;
+                        }));
+        imports.addFunction(
+                new HostFunction(
+                        "env",
+                        "PyErr_NewExceptionWithDoc",
+                        List.of(ValType.I32, ValType.I32, ValType.I32, ValType.I32),
+                        List.of(ValType.I32),
+                        (Instance instance, long... args) -> {
+                            return new long[] {
+                                (long)
+                                        engine.exports()
+                                                .pluginPyErrNewExceptionWithDoc(
+                                                        (int) args[0],
+                                                        (int) args[1],
+                                                        (int) args[2],
+                                                        (int) args[3])
+                            };
+                        }));
+        imports.addFunction(
+                new HostFunction(
+                        "env",
+                        "PyException_GetCause",
+                        List.of(ValType.I32),
+                        List.of(ValType.I32),
+                        (Instance instance, long... args) -> {
+                            return new long[] {
+                                (long) engine.exports().pluginPyExceptionGetCause((int) args[0])
+                            };
+                        }));
+        imports.addFunction(
+                new HostFunction(
+                        "env",
+                        "PyException_SetCause",
+                        List.of(ValType.I32, ValType.I32),
+                        List.of(),
+                        (Instance instance, long... args) -> {
+                            engine.exports()
+                                    .pluginPyExceptionSetCause((int) args[0], (int) args[1]);
+                            return null;
+                        }));
+        imports.addFunction(
+                new HostFunction(
+                        "env",
+                        "PyGILState_Release",
+                        List.of(ValType.I32),
+                        List.of(),
+                        (Instance instance, long... args) -> {
+                            engine.exports().pluginPyGILStateRelease((int) args[0]);
+                            return null;
+                        }));
+        imports.addFunction(
+                new HostFunction(
+                        "env",
+                        "PyErr_Print",
+                        List.of(),
+                        List.of(),
+                        (Instance instance, long... args) -> {
+                            engine.exports().pluginPyErrPrint();
+                            return null;
+                        }));
+        imports.addFunction(
+                new HostFunction(
+                        "env",
+                        "PyEval_SaveThread",
+                        List.of(),
+                        List.of(ValType.I32),
+                        (Instance instance, long... args) -> {
+                            return new long[] {(long) engine.exports().pluginPyEvalSaveThread()};
+                        }));
+        imports.addFunction(
+                new HostFunction(
+                        "env",
+                        "PyNumber_Index",
+                        List.of(ValType.I32),
+                        List.of(ValType.I32),
+                        (Instance instance, long... args) -> {
+                            return new long[] {
+                                (long) engine.exports().pluginPyNumberIndex((int) args[0])
+                            };
+                        }));
+        imports.addFunction(
+                new HostFunction(
+                        "env",
+                        "PyLong_AsUnsignedLongLong",
+                        List.of(ValType.I32),
+                        List.of(ValType.I64),
+                        (Instance instance, long... args) -> {
+                            return new long[] {
+                                engine.exports().pluginPyLongAsUnsignedLongLong((int) args[0])
+                            };
+                        }));
+        imports.addFunction(
+                new HostFunction(
+                        "env",
+                        "Py_IsInitialized",
+                        List.of(),
+                        List.of(ValType.I32),
+                        (Instance instance, long... args) -> {
+                            return new long[] {(long) engine.exports().pluginPyIsInitialized()};
+                        }));
+        imports.addFunction(
+                new HostFunction(
+                        "env",
+                        "PyGILState_Ensure",
+                        List.of(),
+                        List.of(ValType.I32),
+                        (Instance instance, long... args) -> {
+                            return new long[] {(long) engine.exports().pluginPyGILStateEnsure()};
+                        }));
+        imports.addFunction(
+                new HostFunction(
+                        "env",
+                        "PyEval_RestoreThread",
+                        List.of(ValType.I32),
+                        List.of(),
+                        (Instance instance, long... args) -> {
+                            engine.exports().pluginPyEvalRestoreThread((int) args[0]);
+                            return null;
+                        }));
+        imports.addFunction(
+                new HostFunction(
+                        "env",
+                        "PyUnicode_InternInPlace",
+                        List.of(ValType.I32),
+                        List.of(),
+                        (Instance instance, long... args) -> {
+                            engine.exports().pluginPyUnicodeInternInPlace((int) args[0]);
+                            return null;
+                        }));
+        imports.addFunction(
+                new HostFunction(
+                        "env",
+                        "PyErr_Fetch",
+                        List.of(ValType.I32, ValType.I32, ValType.I32),
+                        List.of(),
+                        (Instance instance, long... args) -> {
+                            engine.exports()
+                                    .pluginPyErrFetch((int) args[0], (int) args[1], (int) args[2]);
+                            return null;
+                        }));
+        imports.addFunction(
+                new HostFunction(
+                        "env",
+                        "PyErr_NormalizeException",
+                        List.of(ValType.I32, ValType.I32, ValType.I32),
+                        List.of(),
+                        (Instance instance, long... args) -> {
+                            engine.exports()
+                                    .pluginPyErrNormalizeException(
+                                            (int) args[0], (int) args[1], (int) args[2]);
+                            return null;
+                        }));
+        imports.addFunction(
+                new HostFunction(
+                        "env",
+                        "PyErr_SetObject",
+                        List.of(ValType.I32, ValType.I32),
+                        List.of(),
+                        (Instance instance, long... args) -> {
+                            engine.exports().pluginPyErrSetObject((int) args[0], (int) args[1]);
+                            return null;
+                        }));
+        imports.addFunction(
+                new HostFunction(
+                        "env",
+                        "PyList_Append",
+                        List.of(ValType.I32, ValType.I32),
+                        List.of(ValType.I32),
+                        (Instance instance, long... args) -> {
+                            return new long[] {
+                                (long)
+                                        engine.exports()
+                                                .pluginPyListAppend((int) args[0], (int) args[1])
+                            };
+                        }));
+        imports.addFunction(
+                new HostFunction(
+                        "env",
+                        "PyInterpreterState_Get",
+                        List.of(),
+                        List.of(ValType.I32),
+                        (Instance instance, long... args) -> {
+                            return new long[] {
+                                (long) engine.exports().pluginPyInterpreterStateGet()
+                            };
+                        }));
+        imports.addFunction(
+                new HostFunction(
+                        "env",
+                        "PyInterpreterState_GetID",
+                        List.of(ValType.I32),
+                        List.of(ValType.I64),
+                        (Instance instance, long... args) -> {
+                            return new long[] {
+                                engine.exports().pluginPyInterpreterStateGetID((int) args[0])
+                            };
+                        }));
+        imports.addFunction(
+                new HostFunction(
+                        "env",
+                        "PyModule_Create2",
+                        List.of(ValType.I32, ValType.I32),
+                        List.of(ValType.I32),
+                        (Instance instance, long... args) -> {
+                            return new long[] {
+                                (long)
+                                        engine.exports()
+                                                .pluginPyModuleCreate2((int) args[0], (int) args[1])
+                            };
+                        }));
+        imports.addFunction(
+                new HostFunction(
+                        "env",
+                        "PyCMethod_New",
+                        List.of(ValType.I32, ValType.I32, ValType.I32, ValType.I32),
+                        List.of(ValType.I32),
+                        (Instance instance, long... args) -> {
+                            return new long[] {
+                                (long)
+                                        engine.exports()
+                                                .pluginPyCMethodNew(
+                                                        (int) args[0],
+                                                        (int) args[1],
+                                                        (int) args[2],
+                                                        (int) args[3])
+                            };
+                        }));
+
+        imports.addFunction(
+                new HostFunction(
+                        "env",
+                        "PyImport_AddModule",
+                        List.of(ValType.I32),
+                        List.of(ValType.I32),
+                        (Instance instance, long... args) -> {
+                            return new long[] {
+                                (long) engine.exports().pluginPyImportAddModule((int) args[0])
+                            };
+                        }));
+        imports.addFunction(
+                new HostFunction(
+                        "env",
+                        "Py_XNewRef",
+                        List.of(ValType.I32),
+                        List.of(ValType.I32),
+                        (Instance instance, long... args) -> {
+                            return new long[] {
+                                (long) engine.exports().pluginPyXNewRef((int) args[0])
+                            };
+                        }));
+        imports.addFunction(
+                new HostFunction(
+                        "env",
+                        "PyEval_GetBuiltins",
+                        List.of(),
+                        List.of(ValType.I32),
+                        (Instance instance, long... args) -> {
+                            return new long[] {(long) engine.exports().pluginPyEvalGetBuiltins()};
+                        }));
+        imports.addFunction(
+                new HostFunction(
+                        "env",
+                        "PyDict_SetItem",
+                        List.of(ValType.I32, ValType.I32, ValType.I32),
+                        List.of(ValType.I32),
+                        (Instance instance, long... args) -> {
+                            return new long[] {
+                                (long)
+                                        engine.exports()
+                                                .pluginPyDictSetItem(
+                                                        (int) args[0], (int) args[1], (int) args[2])
+                            };
+                        }));
+        imports.addFunction(
+                new HostFunction(
+                        "env",
+                        "Py_CompileString",
+                        List.of(ValType.I32, ValType.I32, ValType.I32),
+                        List.of(ValType.I32),
+                        (Instance instance, long... args) -> {
+                            return new long[] {
+                                (long)
+                                        engine.exports()
+                                                .pluginPyCompileString(
+                                                        (int) args[0], (int) args[1], (int) args[2])
+                            };
+                        }));
+        imports.addFunction(
+                new HostFunction(
+                        "env",
+                        "PyEval_EvalCode",
+                        List.of(ValType.I32, ValType.I32, ValType.I32),
+                        List.of(ValType.I32),
+                        (Instance instance, long... args) -> {
+                            return new long[] {
+                                (long)
+                                        engine.exports()
+                                                .pluginPyEvalEvalCode(
+                                                        (int) args[0], (int) args[1], (int) args[2])
+                            };
+                        }));
+        imports.addFunction(
+                new HostFunction(
+                        "env",
+                        "PySequence_Contains",
+                        List.of(ValType.I32, ValType.I32),
+                        List.of(ValType.I32),
+                        (Instance instance, long... args) -> {
+                            return new long[] {
+                                (long)
+                                        engine.exports()
+                                                .pluginPySequenceContains(
+                                                        (int) args[0], (int) args[1])
+                            };
+                        }));
+
+        imports.addFunction(
+                new HostFunction(
+                        "env",
+                        "Py_InitializeEx",
+                        List.of(ValType.I32),
+                        List.of(),
+                        (Instance instance, long... args) -> {
+                            engine.exports().pluginPyInitializeEx((int) args[0]);
+                            return null;
+                        }));
+
+        imports.addFunction(
+                new HostFunction(
+                        "env",
+                        "PyTuple_New",
+                        List.of(ValType.I32),
+                        List.of(ValType.I32),
+                        (Instance instance, long... args) -> {
+                            return new long[] {
+                                (long) engine.exports().pluginPyTupleNew((int) args[0])
+                            };
+                        }));
+
+        imports.addFunction(
+                new HostFunction(
+                        "env",
+                        "PyTuple_SetItem",
+                        List.of(ValType.I32, ValType.I32, ValType.I32),
+                        List.of(ValType.I32),
+                        (Instance instance, long... args) -> {
+                            return new long[] {
+                                (long)
+                                        engine.exports()
+                                                .pluginPyTupleSetItem(
+                                                        (int) args[0], (int) args[1], (int) args[2])
+                            };
+                        }));
+
+        // var guestLib = EngineTest.class.getResourceAsStream("/pyo3-example/pyo3_example.wasm");
+        var guestInstance =
+                // Instance.builder(Parser.parse(guestLib)).withImportValues(imports.build()).build();
+                Instance.builder(PythonExample.load())
+                        .withMachineFactory(PythonExample::create)
+                        .withImportValues(imports.build())
+                        .build();
+
+        try {
+            guestInstance.exports().function("example").apply();
+        } catch (Exception e) {
+            System.out.println(engine.stdout());
+            System.err.println(engine.stderr());
+        }
+
+        System.out.println("debug me" + guestInstance);
+        engine.close();
+    }
+
     //    @Test
     //    public void callJavaFunctionsFromJSNegativeCheck() {
     //        var builtins =

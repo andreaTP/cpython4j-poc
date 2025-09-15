@@ -102,6 +102,18 @@
               </interpretedFunctions> -->
             </configuration>
           </execution>
+
+          <!-- TODO: debugging -->
+          <execution>
+            <id>py03-example</id>
+            <goals>
+              <goal>compile</goal>
+            </goals>
+            <configuration>
+              <name>io.roastedroot.cpython4j.core.PythonExample</name>
+              <wasmFile>src/test/resources/pyo3-example/pyo3_example.wasm</wasmFile>
+            </configuration>
+          </execution>
         </executions>
       </plugin>
 
