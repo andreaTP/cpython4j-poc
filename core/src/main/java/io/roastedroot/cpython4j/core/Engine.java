@@ -7,6 +7,7 @@ import com.dylibso.chicory.log.Logger;
 import com.dylibso.chicory.log.SystemLogger;
 import com.dylibso.chicory.runtime.ByteArrayMemory;
 import com.dylibso.chicory.runtime.HostFunction;
+import com.dylibso.chicory.runtime.ImportMemory;
 import com.dylibso.chicory.runtime.ImportValues;
 import com.dylibso.chicory.runtime.Instance;
 import com.dylibso.chicory.runtime.Memory;
@@ -14,6 +15,7 @@ import com.dylibso.chicory.runtime.TrapException;
 import com.dylibso.chicory.wasi.Files;
 import com.dylibso.chicory.wasi.WasiOptions;
 import com.dylibso.chicory.wasi.WasiPreview1;
+import com.dylibso.chicory.wasm.Parser;
 import com.dylibso.chicory.wasm.types.MemoryLimits;
 import com.dylibso.chicory.wasm.types.ValueType;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -133,13 +135,19 @@ public final class Engine implements AutoCloseable {
                         });
         this.invokables = invokables;
         instance =
-                Instance.builder(PythonPlugin.load())
-                        .withMemoryFactory(memoryFactory)
-                        .withMachineFactory(PythonPlugin::create)
+                Instance.builder(Parser.parse(Path.of("../pyo3_plugin-opt.wasm")))
+                        // .builder(PythonPlugin.load())
+                        // .withMemoryFactory(memoryFactory)
+                        // .withMachineFactory(PythonPlugin::create)
                         .withImportValues(
                                 ImportValues.builder()
                                         .addFunction(wasi.toHostFunctions())
                                         .addFunction(invokeFn)
+                                        .addMemory(
+                                                new ImportMemory(
+                                                        "env",
+                                                        "memory",
+                                                        new ByteArrayMemory(new MemoryLimits(70))))
                                         .build())
                         .build();
         exports = new Engine_ModuleExports(instance);
@@ -235,7 +243,7 @@ public final class Engine implements AutoCloseable {
             var returnBytes = returnStr.getBytes();
 
             var returnPtr = exports.pluginMalloc(returnBytes.length);
-            exports.memory().write(returnPtr, returnBytes);
+            instance.memory().write(returnPtr, returnBytes);
 
             var LEN = 8;
             var widePtr = exports.pluginMalloc(LEN);

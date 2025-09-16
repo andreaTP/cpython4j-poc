@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.dylibso.chicory.annotations.WasmModuleInterface;
 import com.dylibso.chicory.runtime.HostFunction;
+import com.dylibso.chicory.runtime.ImportMemory;
 import com.dylibso.chicory.runtime.ImportValues;
 import com.dylibso.chicory.runtime.Instance;
 import com.dylibso.chicory.wasm.types.FunctionType;
@@ -500,6 +501,18 @@ public class EngineTest {
                                 engine.exports().pluginPyLongAsUnsignedLongLong((int) args[0])
                             };
                         }));
+
+        imports.addFunction(
+                new HostFunction(
+                        "env",
+                        "PyLong_AsLongLong",
+                        List.of(ValType.I32),
+                        List.of(ValType.I64),
+                        (Instance instance, long... args) -> {
+                            return new long[] {
+                                engine.exports().pluginPyLongAsLongLong((int) args[0])
+                            };
+                        }));
         imports.addFunction(
                 new HostFunction(
                         "env",
@@ -728,6 +741,111 @@ public class EngineTest {
         imports.addFunction(
                 new HostFunction(
                         "env",
+                        "PySequence_Check",
+                        List.of(ValType.I32),
+                        List.of(ValType.I32),
+                        (Instance instance, long... args) -> {
+                            return new long[] {
+                                (long) engine.exports().pluginPySequenceCheck((int) args[0])
+                            };
+                        }));
+
+        imports.addFunction(
+                new HostFunction(
+                        "env",
+                        "PySequence_Size",
+                        List.of(ValType.I32),
+                        List.of(ValType.I32),
+                        (Instance instance, long... args) -> {
+                            return new long[] {
+                                (long) engine.exports().pluginPySequenceSize((int) args[0])
+                            };
+                        }));
+
+        imports.addFunction(
+                new HostFunction(
+                        "env",
+                        "PyIter_Next",
+                        List.of(ValType.I32),
+                        List.of(ValType.I32),
+                        (Instance instance, long... args) -> {
+                            return new long[] {
+                                (long) engine.exports().pluginPyIterNext((int) args[0])
+                            };
+                        }));
+
+        imports.addFunction(
+                new HostFunction(
+                        "env",
+                        "PyIter_Check",
+                        List.of(ValType.I32),
+                        List.of(ValType.I32),
+                        (Instance instance, long... args) -> {
+                            return new long[] {
+                                (long) engine.exports().pluginPyIterCheck((int) args[0])
+                            };
+                        }));
+
+        imports.addFunction(
+                new HostFunction(
+                        "env",
+                        "PyObject_GetIter",
+                        List.of(ValType.I32),
+                        List.of(ValType.I32),
+                        (Instance instance, long... args) -> {
+                            return new long[] {
+                                (long) engine.exports().pluginPyObjectGetIter((int) args[0])
+                            };
+                        }));
+
+        imports.addFunction(
+                new HostFunction(
+                        "env",
+                        "PyObject_Call",
+                        List.of(ValType.I32, ValType.I32, ValType.I32),
+                        List.of(ValType.I32),
+                        (Instance instance, long... args) -> {
+                            return new long[] {
+                                (long)
+                                        engine.exports()
+                                                .pluginPyObjectCall(
+                                                        (int) args[0], (int) args[1], (int) args[2])
+                            };
+                        }));
+
+        imports.addFunction(
+                new HostFunction(
+                        "env",
+                        "PyObject_CallObject",
+                        List.of(ValType.I32, ValType.I32),
+                        List.of(ValType.I32),
+                        (Instance instance, long... args) -> {
+                            return new long[] {
+                                (long)
+                                        engine.exports()
+                                                .pluginPyObjectCallObject(
+                                                        (int) args[0], (int) args[1])
+                            };
+                        }));
+
+        imports.addFunction(
+                new HostFunction(
+                        "env",
+                        "PyObject_CallFunction",
+                        List.of(ValType.I32, ValType.I32),
+                        List.of(ValType.I32),
+                        (Instance instance, long... args) -> {
+                            return new long[] {
+                                (long)
+                                        engine.exports()
+                                                .pluginPyObjectCallFunction(
+                                                        (int) args[0], (int) args[1])
+                            };
+                        }));
+
+        imports.addFunction(
+                new HostFunction(
+                        "env",
                         "Py_InitializeEx",
                         List.of(ValType.I32),
                         List.of(),
@@ -763,6 +881,8 @@ public class EngineTest {
                             };
                         }));
 
+        imports.addMemory(new ImportMemory("env", "memory", engine.instance().memory()));
+
         // var guestLib = EngineTest.class.getResourceAsStream("/pyo3-example/pyo3_example.wasm");
         var guestInstance =
                 // Instance.builder(Parser.parse(guestLib)).withImportValues(imports.build()).build();
@@ -774,6 +894,8 @@ public class EngineTest {
         try {
             guestInstance.exports().function("example").apply();
         } catch (Exception e) {
+            System.out.println("Exception");
+            e.printStackTrace();
             System.out.println(engine.stdout());
             System.err.println(engine.stderr());
         }
