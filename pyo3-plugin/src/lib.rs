@@ -1,6 +1,22 @@
 use pyo3::prelude::*;
 use std::sync::Once;
 
+
+// Debug function to help diagnose memory issues
+#[no_mangle]
+pub extern "C" fn plugin_debug_memory_info() -> *mut PyObject {
+    Python::attach(|_py| -> PyResult<*mut PyObject> {
+        let info = format!(
+            "Memory info:\n- WASM memory size: {} bytes\n- Python initialized: {}\n- GIL state: {:?}",
+            // This would need to be implemented to get actual WASM memory size
+            0, // Placeholder
+            unsafe { Py_IsInitialized() != 0 },
+            "Unknown" // Placeholder for GIL state
+        );
+        Ok(unsafe { PyUnicode_FromStringAndSize(info.as_ptr() as *const c_char, info.len() as Py_ssize_t) })
+    }).unwrap_or(std::ptr::null_mut())
+}
+
 // Import WASI's malloc and free functions
 extern "C" {
     fn malloc(size: usize) -> *mut u8;
@@ -36,10 +52,10 @@ use pyo3_ffi::{
     PyException_SetCause, PyErr_NewExceptionWithDoc, PyErr_GivenExceptionMatches,
     PyGILState_Release, PyGILState_Ensure, PyEval_SaveThread, PyEval_RestoreThread,
     PyImport_Import, PyObject_CallNoArgs, PyTraceBack_Print, PyNumber_Index,
-    PyLong_AsUnsignedLongLong, Py_IsInitialized, PyModule_GetNameObject, PyModule_Create2,
+    PyLong_AsUnsignedLongLong, PyLong_AsLongLong, Py_IsInitialized, PyModule_GetNameObject, PyModule_Create2,
     PyCMethod_New, PyInterpreterState_Get, PyInterpreterState_GetID,
     PyImport_AddModule, Py_XNewRef, PyEval_GetBuiltins, PyDict_SetItem,
-    Py_CompileString, PyEval_EvalCode, PySequence_Contains, Py_InitializeEx, PyTuple_New, PyTuple_SetItem,
+    Py_CompileString, PyEval_EvalCode, PySequence_Contains, PySequence_Check, PySequence_Size, PyIter_Next, PyIter_Check, PyObject_GetIter, PyObject_Call, PyObject_CallObject, PyObject_CallFunction, Py_InitializeEx, PyTuple_New, PyTuple_SetItem,
     PyTypeObject, PyThreadState, PyInterpreterState, PyModuleDef, PyMethodDef,
     Py_ssize_t
 };
@@ -226,6 +242,11 @@ pub extern "C" fn plugin_PyLong_AsUnsignedLongLong(obj: *mut PyObject) -> u64 {
 }
 
 #[no_mangle]
+pub extern "C" fn plugin_PyLong_AsLongLong(obj: *mut PyObject) -> i64 {
+    unsafe { PyLong_AsLongLong(obj) }
+}
+
+#[no_mangle]
 pub extern "C" fn plugin_Py_IsInitialized() -> i32 {
     unsafe { Py_IsInitialized() }
 }
@@ -318,6 +339,46 @@ pub extern "C" fn plugin_PyEval_EvalCode(co: *mut PyObject, globals: *mut PyObje
 #[no_mangle]
 pub extern "C" fn plugin_PySequence_Contains(seq: *mut PyObject, item: *mut PyObject) -> i32 {
     unsafe { PySequence_Contains(seq, item) }
+}
+
+#[no_mangle]
+pub extern "C" fn plugin_PySequence_Check(obj: *mut PyObject) -> i32 {
+    unsafe { PySequence_Check(obj) }
+}
+
+#[no_mangle]
+pub extern "C" fn plugin_PySequence_Size(obj: *mut PyObject) -> i32 {
+    unsafe { PySequence_Size(obj) as i32 }
+}
+
+#[no_mangle]
+pub extern "C" fn plugin_PyIter_Next(iter: *mut PyObject) -> *mut PyObject {
+    unsafe { PyIter_Next(iter) }
+}
+
+#[no_mangle]
+pub extern "C" fn plugin_PyIter_Check(obj: *mut PyObject) -> i32 {
+    unsafe { PyIter_Check(obj) }
+}
+
+#[no_mangle]
+pub extern "C" fn plugin_PyObject_GetIter(obj: *mut PyObject) -> *mut PyObject {
+    unsafe { PyObject_GetIter(obj) }
+}
+
+#[no_mangle]
+pub extern "C" fn plugin_PyObject_Call(callable: *mut PyObject, args: *mut PyObject, kw: *mut PyObject) -> *mut PyObject {
+    unsafe { PyObject_Call(callable, args, kw) }
+}
+
+#[no_mangle]
+pub extern "C" fn plugin_PyObject_CallObject(callable: *mut PyObject, args: *mut PyObject) -> *mut PyObject {
+    unsafe { PyObject_CallObject(callable, args) }
+}
+
+#[no_mangle]
+pub extern "C" fn plugin_PyObject_CallFunction(callable: *mut PyObject, format: *const c_char) -> *mut PyObject {
+    unsafe { PyObject_CallFunction(callable, format) }
 }
 
 #[no_mangle]
@@ -447,30 +508,30 @@ fn pyo3_plugin(m: &Bound<'_, PyModule>) -> PyResult<()> {
     Ok(())
 }
 
-#[export_name = "wizer.initialize"]
-pub extern "C" fn init() {
-    // Set environment variables to configure Python before initialization
-    std::env::set_var("PYTHONHOME", "/usr/local");
-    std::env::set_var("PYTHONPATH", "/usr/local/lib/python3.11");
+// #[export_name = "wizer.initialize"]
+// pub extern "C" fn init() {
+//     // Set environment variables to configure Python before initialization
+//     std::env::set_var("PYTHONHOME", "/usr/local");
+//     std::env::set_var("PYTHONPATH", "/usr/local/lib/python3.11");
     
-    // Initialize Python runtime
-    Python::initialize();
+//     // Initialize Python runtime
+//     Python::initialize();
     
-    // Initialize Python runtime and register our module
-    plugin_init();
+//     // Initialize Python runtime and register our module
+//     plugin_init();
     
-    // Pre-initialize the environment with some basic Python code
-    Python::attach(|py| -> PyResult<()> {
-        // Set up basic Python environment and preload critical modules
-        let init_code = r#"
-import sys
-print("Python environment pre-initialized")
-print(f"Python version: {sys.version}")
-print("pyo3_plugin module available for import")
-"#;
+//     // Pre-initialize the environment with some basic Python code
+//     Python::attach(|py| -> PyResult<()> {
+//         // Set up basic Python environment and preload critical modules
+//         let init_code = r#"
+// import sys
+// print("Python environment pre-initialized")
+// print(f"Python version: {sys.version}")
+// print("pyo3_plugin module available for import")
+// "#;
         
-        let c_string = std::ffi::CString::new(init_code).unwrap();
-        py.run(&c_string, None, None)
-    })
-    .expect("Failed to pre-initialize Python environment");
-}
+//         let c_string = std::ffi::CString::new(init_code).unwrap();
+//         py.run(&c_string, None, None)
+//     })
+//     .expect("Failed to pre-initialize Python environment");
+// }
