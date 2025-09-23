@@ -74,3 +74,5 @@ docs/_build/
 wasi-vfs
 webassembly-language-runtimes
 *.wasm
+
+tools
