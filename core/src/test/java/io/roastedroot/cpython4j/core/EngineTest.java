@@ -773,7 +773,7 @@ public class EngineTest {
 
         try {
             guestInstance.exports().function("example").apply();
-        } catch (Exception e) {
+        } catch (RuntimeException e) {
             System.out.println(engine.stdout());
             System.err.println(engine.stderr());
         }
